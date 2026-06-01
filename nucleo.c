@@ -9,6 +9,7 @@ PTR_DESC_PROC prim   = NULL;
 PTR_DESC_PROC ultimo = NULL;
 PTR_DESC_PROC atual  = NULL;
 
+static PTR_DESC_PROC processo_zumbi = NULL;
 static descritor main_desc;
 static PTR_DESC  main_ctx   = &main_desc;
 static int       main_ready = 0;
@@ -83,21 +84,23 @@ static void inserir_processo_na_fila(PTR_DESC_PROC proc)
 
 static void liberar_processo_na_fila(PTR_DESC_PROC proc)
 {
-    if (!proc && proc->estado != TERMINADO)
-        fprintf(stderr, "[ERRO] %s, linha %d. Descritor de processo inválido.\n", __FUNCTION__, __LINE__);
+    // Correção do operador lógico de && para || para evitar desreferenciação de nulo
+    if (!proc || proc->estado != TERMINADO) {
+        fprintf(stderr, "[ERRO] %s, linha %d. Descritor de processo inválido ou não terminado.\n", __FUNCTION__, __LINE__);
+        return;
+    }
 
-    printf("[DEBUG] Liberando fiber %s...\n", proc->nome);
+    printf("[DEBUG] Liberando fiber do processo %s...\n", proc->nome);
 
+    if (proc->contexto) {
+        if (proc->contexto->fiber) {
+            DeleteFiber(proc->contexto->fiber);
+        }
+        free(proc->contexto);
+        proc->contexto = NULL;
+    }
 
-    DeleteFiber(proc->contexto->fiber);
-    free(proc->contexto);
-    proc->contexto = NULL;
-
-    // fprintf(stderr, "[ERRO] %s, linha %d. Falha ao liberar fiber do processo %s. Erro: %s.\n", __FUNCTION__, __LINE__, proc->nome, e);
-
-    printf("[DEBUG] Processo %s liberto.\n", proc->nome);
-    printf("[DEBUG] nova lista de processos:\n");
-    print_fila_circular();
+    printf("[DEBUG] Processo %s liberto da memória de contexto.\n", proc->nome);
 }
 
 static void processo_trampolim(void *arg)
@@ -105,22 +108,25 @@ static void processo_trampolim(void *arg)
     PTR_DESC_PROC ptr_desc_proc = (PTR_DESC_PROC) arg;
     if (!ptr_desc_proc || !ptr_desc_proc->codigo) {
         fprintf(stderr, "[ERRO]: %s, linha %d. Descritor ou código inválido.\n", __FUNCTION__, __LINE__);
+        return;
     }
 
     atual = ptr_desc_proc;
     ptr_desc_proc->codigo();
 
     termina_processo();
+
+    // O processo atual voluntariamente se coloca na fila de eliminação
+    processo_zumbi = atual;
     yield();
 
-    // Caso o yield() não tenha transferido, é porque não há nenhum outro processo 'PRONTO'.
-    // Sendo assim, verifica se pode transferir pra main().
+    // Caso o yield() retorne, significa que este era o ÚLTIMO processo ativo do sistema.
     if (main_ready) {
-        printf("[DEBUG] %s: pronto pra transferir pra main().\n", __FUNCTION__);
+        printf("[DEBUG] %s: Pronto para transferir para a main().\n", __FUNCTION__);
+        // A transferência para a main é segura. A main se encarregará de limpar este último zumbi.
         transfer(atual->contexto, main_ctx);
     }
 }
-
 static PTR_DESC_PROC proximo_ativo_depois(PTR_DESC_PROC a_partir)
 {
     PTR_DESC_PROC aux = a_partir->prox_desc;
@@ -172,14 +178,29 @@ void encerra_fila_prontos(void)
 {
     PTR_DESC_PROC p = prim;
     PTR_DESC_PROC aux;
-    ultimo->prox_desc = NULL;  // transforma lista circular me lista normal.
+
+    if (ultimo) {
+        ultimo->prox_desc = NULL;  // Transforma lista circular em lista linear comum
+    }
+
     while (p != NULL) {
         aux = p->prox_desc;
-        free(p);  // não verifica se P é válido ou se já encerrou. Isolamento de responsabilidades.
+
+        // Se o contexto ou a fiber ainda existirem (caso do último processo executado), limpa aqui
+        if (p->contexto != NULL) {
+            if (p->contexto->fiber != NULL) {
+                DeleteFiber(p->contexto->fiber);
+            }
+            free(p->contexto);
+        }
+
+        printf("[DEBUG] Desalocando descritor do processo: %s\n", p->nome);
+        free(p);
         p = aux;
     }
 
-    printf("[DEBUG] Todos as Fibers foram libertas com sucesso.\n");
+    processo_zumbi = NULL; // Reseta o ponteiro global por segurança
+    printf("[DEBUG] Todas as Fibers e descritores foram libertos com sucesso pelo processo principal.\n");
 }
 
 void dispara_sistema(void)
@@ -209,11 +230,20 @@ void yield(void)
         PTR_DESC_PROC antigo = atual;
         atual = prox;
 
+        // Troca de contexto realizada por Fibers
         transfer(antigo->contexto, atual->contexto);
-    }
 
+        // =========================================================================
+        // PONTO DE RETORNO: Qualquer Fiber que acordar aqui está em sua própria pilha.
+        // Agora é seguro eliminar o processo zumbi que pediu para ser liberado.
+        // =========================================================================
+        if (processo_zumbi != NULL) {
+            liberar_processo_na_fila(processo_zumbi);
+            processo_zumbi = NULL; // Zumbi coletado com sucesso
+        }
+    }
     else {
-        set_main_ready();  // atribui a variável `main_ready` como 1 se todos os processos foram terminados.
+        set_main_ready();  // Atribui a variável `main_ready` como 1 se não houver outros ATIVOS.
     }
 }
 
@@ -227,5 +257,5 @@ void termina_processo(void)
     atual->estado = TERMINADO;
     PTR_DESC_PROC antigo = atual;
 
-    liberar_processo_na_fila(antigo);
+    // liberar_processo_na_fila(antigo);
 }

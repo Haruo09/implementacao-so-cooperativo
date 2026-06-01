@@ -33,9 +33,10 @@
 	"semaforo.h"
 	"pausa.h"
 
-1780274967 source:c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\nucleo.c
+1780277695 source:c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\nucleo.c
 	<stdio.h>
 	<stdlib.h>
+	<windows.h>
 	"system.h"
 	"nucleo.h"
 
