@@ -89,9 +89,9 @@ static void liberar_processo_na_fila(PTR_DESC_PROC proc)
     printf("[DEBUG] Liberando fiber %s...\n", proc->nome);
 
 
-    DeleteFiber(proc->contexto->fiber);
-    free(proc->contexto);
-    proc->contexto = NULL;
+    // DeleteFiber(proc->contexto->fiber);
+    // free(proc->contexto);
+    // proc->contexto = NULL;
 
     // fprintf(stderr, "[ERRO] %s, linha %d. Falha ao liberar fiber do processo %s. Erro: %s.\n", __FUNCTION__, __LINE__, proc->nome, e);
 
@@ -174,8 +174,13 @@ void encerra_fila_prontos(void)
     PTR_DESC_PROC aux;
     ultimo->prox_desc = NULL;  // transforma lista circular me lista normal.
     while (p != NULL) {
+        // não verifica se P é válido ou se já encerrou. Isolamento de responsabilidades.
+        DeleteFiber(p->contexto->fiber);
         aux = p->prox_desc;
-        free(p);  // não verifica se P é válido ou se já encerrou. Isolamento de responsabilidades.
+
+        printf("[DEBUG] %s: Libertando Fiber %s.\n", __FUNCTION__, p->nome);
+        free(p->contexto);
+        free(p);
         p = aux;
     }
 
@@ -227,5 +232,5 @@ void termina_processo(void)
     atual->estado = TERMINADO;
     PTR_DESC_PROC antigo = atual;
 
-    liberar_processo_na_fila(antigo);
+    // liberar_processo_na_fila(antigo);
 }
