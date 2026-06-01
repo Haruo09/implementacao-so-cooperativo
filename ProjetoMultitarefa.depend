@@ -1,0 +1,41 @@
+# depslib dependency file v1.0
+1780001793 source:c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\pausa.c
+	"pausa.h"
+	<windows.h>
+	<time.h>
+
+1780001793 c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\pausa.h
+
+1780001793 source:c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\system.c
+	"system.h"
+	<stdlib.h>
+	<stdio.h>
+
+1780001793 c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\system.h
+	<windows.h>
+
+1780262312 source:c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\semaforo.c
+	"semaforo.h"
+	<stdio.h>
+	<stdlib.h>
+
+1780003339 c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\semaforo.h
+	"nucleo.h"
+
+1780271984 c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\nucleo.h
+	"system.h"
+
+1780271993 source:c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\main.c
+	<stdio.h>
+	<stdlib.h>
+	"system.h"
+	"nucleo.h"
+	"semaforo.h"
+	"pausa.h"
+
+1780274967 source:c:\users\fábio haruo\documents\ifsp\projetomultitarefa\projetomultitarefa\nucleo.c
+	<stdio.h>
+	<stdlib.h>
+	"system.h"
+	"nucleo.h"
+
