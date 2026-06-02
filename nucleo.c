@@ -14,7 +14,7 @@ static descritor main_desc;
 static PTR_DESC  main_ctx   = &main_desc;
 static int       main_ready = 0;
 
-// ======================  FUNÇÕES DE DEBUG DA BIBLIOTECA  ======================
+// ======================  FUNÃ‡Ã•ES DE DEBUG DA BIBLIOTECA  ======================
 static void print_descritor(PTR_DESC_PROC d)
 {
     printf("[DEBUG] DESCRITOR: %s. STATUS: ", d->nome, d->estado);
@@ -29,7 +29,7 @@ static void print_descritor(PTR_DESC_PROC d)
         printf("TERMINADO\n");
         break;
     default:
-        printf("Estado Inválido\n");
+        printf("Estado InvÃ¡lido\n");
     }
 }
 
@@ -58,7 +58,7 @@ static void set_main_ready()
     main_ready = ultimo->estado == TERMINADO;  // atribui 1 se verdade, 0 se falso.
 }
 
-// ====================== FUNÇÕES AUXILIARES DA BIBLIOTECA ======================
+// ====================== FUNÃ‡Ã•ES AUXILIARES DA BIBLIOTECA ======================
 
 // TODO: static inserir_processo_na_fila(...); [x]
 // TODO: static liberar_processo_na_fila(...); [x]
@@ -84,13 +84,15 @@ static void inserir_processo_na_fila(PTR_DESC_PROC proc)
 
 static void liberar_processo_na_fila(PTR_DESC_PROC proc)
 {
-    // Correção do operador lógico de && para || para evitar desreferenciação de nulo
+    // CorreÃ§Ã£o do operador lÃ³gico de && para || para evitar desreferenciaÃ§Ã£o de nulo
     if (!proc || proc->estado != TERMINADO) {
-        fprintf(stderr, "[ERRO] %s, linha %d. Descritor de processo inválido ou não terminado.\n", __FUNCTION__, __LINE__);
+        fprintf(stderr, "[ERRO] %s, linha %d. Descritor de processo invÃ¡lido ou nÃ£o terminado.\n", __FUNCTION__, __LINE__);
         return;
     }
 
-    printf("[DEBUG] Liberando fiber do processo %s...\n", proc->nome);
+    // DeleteFiber(proc->contexto->fiber);
+    // free(proc->contexto);
+    // proc->contexto = NULL;
 
     if (proc->contexto) {
         if (proc->contexto->fiber) {
@@ -100,14 +102,14 @@ static void liberar_processo_na_fila(PTR_DESC_PROC proc)
         proc->contexto = NULL;
     }
 
-    printf("[DEBUG] Processo %s liberto da memória de contexto.\n", proc->nome);
+    printf("[DEBUG] Processo %s liberto da memÃ³ria de contexto.\n", proc->nome);
 }
 
 static void processo_trampolim(void *arg)
 {
     PTR_DESC_PROC ptr_desc_proc = (PTR_DESC_PROC) arg;
     if (!ptr_desc_proc || !ptr_desc_proc->codigo) {
-        fprintf(stderr, "[ERRO]: %s, linha %d. Descritor ou código inválido.\n", __FUNCTION__, __LINE__);
+        fprintf(stderr, "[ERRO]: %s, linha %d. Descritor ou cÃ³digo invÃ¡lido.\n", __FUNCTION__, __LINE__);
         return;
     }
 
@@ -116,14 +118,14 @@ static void processo_trampolim(void *arg)
 
     termina_processo();
 
-    // O processo atual voluntariamente se coloca na fila de eliminação
+    // O processo atual voluntariamente se coloca na fila de eliminaÃ§Ã£o
     processo_zumbi = atual;
     yield();
 
-    // Caso o yield() retorne, significa que este era o ÚLTIMO processo ativo do sistema.
+    // Caso o yield() retorne, significa que este era o ÃšLTIMO processo ativo do sistema.
     if (main_ready) {
         printf("[DEBUG] %s: Pronto para transferir para a main().\n", __FUNCTION__);
-        // A transferência para a main é segura. A main se encarregará de limpar este último zumbi.
+        // A transferÃªncia para a main Ã© segura. A main se encarregarÃ¡ de limpar este Ãºltimo zumbi.
         transfer(atual->contexto, main_ctx);
     }
 }
@@ -140,7 +142,7 @@ static PTR_DESC_PROC proximo_ativo_depois(PTR_DESC_PROC a_partir)
     return (a_partir->estado == ATIVO) ? a_partir : NULL;
 }
 
-// ====================== FUNÇÕES PRINCIPAIS DA BIBLIOTECA ======================
+// ====================== FUNÃ‡Ã•ES PRINCIPAIS DA BIBLIOTECA ======================
 
 // TODO: cria_processo(...);        [x]
 // TODO: inicia_fila_prontos(...);  [x]
@@ -152,7 +154,7 @@ void cria_processo(void (*end_proc)(void), const char *nome_p)
 {
     PTR_DESC_PROC descritor_processo = (PTR_DESC_PROC) malloc(sizeof(DESCRITOR_PROC));
     if (!descritor_processo) {
-        fprintf(stderr, "[ERRO]: %s, linha %d. Não foi possível criar descritor do processo %s.\n", __FUNCTION__, __LINE__, nome_p);
+        fprintf(stderr, "[ERRO]: %s, linha %d. NÃ£o foi possÃ­vel criar descritor do processo %s.\n", __FUNCTION__, __LINE__, nome_p);
         return;
     }
 
@@ -184,22 +186,17 @@ void encerra_fila_prontos(void)
     }
 
     while (p != NULL) {
+        // nÃ£o verifica se P Ã© vÃ¡lido ou se jÃ¡ encerrou. Isolamento de responsabilidades.
+        DeleteFiber(p->contexto->fiber);
         aux = p->prox_desc;
 
-        // Se o contexto ou a fiber ainda existirem (caso do último processo executado), limpa aqui
-        if (p->contexto != NULL) {
-            if (p->contexto->fiber != NULL) {
-                DeleteFiber(p->contexto->fiber);
-            }
-            free(p->contexto);
-        }
-
-        printf("[DEBUG] Desalocando descritor do processo: %s\n", p->nome);
+        printf("[DEBUG] %s: Libertando Fiber %s.\n", __FUNCTION__, p->nome);
+        free(p->contexto);
         free(p);
         p = aux;
     }
 
-    processo_zumbi = NULL; // Reseta o ponteiro global por segurança
+    processo_zumbi = NULL; // Reseta o ponteiro global por seguranÃ§a
     printf("[DEBUG] Todas as Fibers e descritores foram libertos com sucesso pelo processo principal.\n");
 }
 
@@ -234,8 +231,8 @@ void yield(void)
         transfer(antigo->contexto, atual->contexto);
 
         // =========================================================================
-        // PONTO DE RETORNO: Qualquer Fiber que acordar aqui está em sua própria pilha.
-        // Agora é seguro eliminar o processo zumbi que pediu para ser liberado.
+        // PONTO DE RETORNO: Qualquer Fiber que acordar aqui estÃ¡ em sua prÃ³pria pilha.
+        // Agora Ã© seguro eliminar o processo zumbi que pediu para ser liberado.
         // =========================================================================
         if (processo_zumbi != NULL) {
             liberar_processo_na_fila(processo_zumbi);
@@ -243,14 +240,14 @@ void yield(void)
         }
     }
     else {
-        set_main_ready();  // Atribui a variável `main_ready` como 1 se não houver outros ATIVOS.
+        set_main_ready();  // Atribui a variÃ¡vel `main_ready` como 1 se nÃ£o houver outros ATIVOS.
     }
 }
 
 void termina_processo(void)
 {
     if (!atual || atual->estado != ATIVO) {
-        fprintf(stderr, "[ERRO]: %s, linha %d. Não foi possível terminar o processo.\n", __FUNCTION__, __LINE__);
+        fprintf(stderr, "[ERRO]: %s, linha %d. NÃ£o foi possÃ­vel terminar o processo.\n", __FUNCTION__, __LINE__);
         return;
     }
 
