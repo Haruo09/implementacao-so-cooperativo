@@ -194,13 +194,10 @@ void encerra_fila_prontos(void)
         p = aux;
     }
 
-<<<<<<< HEAD
     prim   = NULL;
     ultimo = NULL;
     atual  = NULL;
 
-=======
->>>>>>> 01ce766ae8a4e160f547d3d5a3fb57df46ec22f8
     printf("[DEBUG] Todas as Fibers e descritores foram libertos com sucesso pelo processo principal.\n");
 }
 
