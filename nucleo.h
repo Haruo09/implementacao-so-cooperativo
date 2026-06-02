@@ -28,12 +28,6 @@ typedef struct desc_p
 
 typedef DESCRITOR_PROC* PTR_DESC_PROC;
 
-// TODO: cria_processo(...);
-// TODO: inicia_fila_prontos(...);
-// TODO: dispara_sistema(...);
-// TODO: escalador(...);
-// TODO: termina_processo(...);
-
 void cria_processo(void (*end_proc)(void), const char *nome_p);
 void inicia_fila_prontos(void);
 void dispara_sistema(void);

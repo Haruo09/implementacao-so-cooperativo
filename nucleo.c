@@ -9,12 +9,11 @@ PTR_DESC_PROC prim   = NULL;
 PTR_DESC_PROC ultimo = NULL;
 PTR_DESC_PROC atual  = NULL;
 
-static PTR_DESC_PROC processo_zumbi = NULL;
 static descritor main_desc;
 static PTR_DESC  main_ctx   = &main_desc;
 static int       main_ready = 0;
 
-// ======================  FUNÇÕES DE DEBUG DA BIBLIOTECA  ======================
+// ===========================  FUNÇÕES DE DEBUG DA BIBLIOTECA  ===========================
 static void print_descritor(PTR_DESC_PROC d)
 {
     printf("[DEBUG] DESCRITOR: %s. STATUS: ", d->nome, d->estado);
@@ -44,6 +43,48 @@ static void print_fila_circular(void)
     }
 }
 
+// =========================== FUNÇÕES AUXILIARES DA BIBLIOTECA ===========================
+
+// TODO: static inserir_processo_na_fila(...); [x]
+// TODO: static liberar_processo_na_fila(...); [c] task cancelada.
+// TODO: static set_main_ready(...);           [x]
+// TODO: static processo_trampolin(...);       [x]
+// TODO: static proximo_ativo_depois(...);     [x]
+
+static void inserir_processo_na_fila(PTR_DESC_PROC proc)
+{
+    if (!prim && !ultimo) {
+        prim = proc;
+        ultimo = proc;
+        proc->prox_desc = proc;
+    }
+
+    else {
+        ultimo->prox_desc = proc;
+        ultimo = proc;
+        ultimo->prox_desc = prim;
+    }
+}
+
+// A implementação a seguir é válida, mas acabou não utilizada.
+static void liberar_processo_na_fila(PTR_DESC_PROC proc)
+{
+    if (!proc || proc->estado != TERMINADO) {
+        fprintf(stderr, "[ERRO] %s, linha %d. Descritor de processo inválido ou não terminado.\n", __FUNCTION__, __LINE__);
+        return;
+    }
+
+    if (proc->contexto) {
+        if (proc->contexto->fiber) {
+            DeleteFiber(proc->contexto->fiber);
+        }
+        free(proc->contexto);
+        proc->contexto = NULL;
+    }
+
+    printf("[DEBUG] Processo %s liberto da memória de contexto.\n", proc->nome);
+}
+
 static void set_main_ready()
 {
     PTR_DESC_PROC p = prim;
@@ -58,52 +99,6 @@ static void set_main_ready()
     main_ready = ultimo->estado == TERMINADO;  // atribui 1 se verdade, 0 se falso.
 }
 
-// ====================== FUNÇÕES AUXILIARES DA BIBLIOTECA ======================
-
-// TODO: static inserir_processo_na_fila(...); [x]
-// TODO: static liberar_processo_na_fila(...); [x]
-// TODO: processo_trampolin(...);              [x]
-// TODO: proximo_ativo_depois(...);            [x]
-
-static void inserir_processo_na_fila(PTR_DESC_PROC proc)
-{
-    if (!prim && !ultimo)
-    {
-        prim = proc;
-        ultimo = proc;
-        proc->prox_desc = proc;
-    }
-
-    else
-    {
-        ultimo->prox_desc = proc;
-        ultimo = proc;
-        ultimo->prox_desc = prim;
-    }
-}
-
-static void liberar_processo_na_fila(PTR_DESC_PROC proc)
-{
-    // Correção do operador lógico de && para || para evitar desreferenciação de nulo
-    if (!proc || proc->estado != TERMINADO) {
-        fprintf(stderr, "[ERRO] %s, linha %d. Descritor de processo inválido ou não terminado.\n", __FUNCTION__, __LINE__);
-        return;
-    }
-
-    // DeleteFiber(proc->contexto->fiber);
-    // free(proc->contexto);
-    // proc->contexto = NULL;
-
-    if (proc->contexto) {
-        if (proc->contexto->fiber) {
-            DeleteFiber(proc->contexto->fiber);
-        }
-        free(proc->contexto);
-        proc->contexto = NULL;
-    }
-
-    printf("[DEBUG] Processo %s liberto da memória de contexto.\n", proc->nome);
-}
 
 static void processo_trampolim(void *arg)
 {
@@ -117,18 +112,21 @@ static void processo_trampolim(void *arg)
     ptr_desc_proc->codigo();
 
     termina_processo();
-
-    // O processo atual voluntariamente se coloca na fila de eliminação
-    processo_zumbi = atual;
     yield();
 
-    // Caso o yield() retorne, significa que este era o ÚLTIMO processo ativo do sistema.
+    // Caso o yield() não tenha transferido, é porque não há nenhum outro processo 'PRONTO'.
+    // Sendo assim, verifica se pode transferir pra main().
     if (main_ready) {
-        printf("[DEBUG] %s: Pronto para transferir para a main().\n", __FUNCTION__);
-        // A transferência para a main é segura. A main se encarregará de limpar este último zumbi.
+        printf("[DEBUG] %s: pronto pra transferir pra main().\n", __FUNCTION__);
         transfer(atual->contexto, main_ctx);
     }
+
+    else {
+        fprintf(stderr, "[ERRO]: %s, linha %d. Não foi possível retornar para a fiber principal.\n", __FUNCTION__, __LINE__);
+        exit(1);
+    }
 }
+
 static PTR_DESC_PROC proximo_ativo_depois(PTR_DESC_PROC a_partir)
 {
     PTR_DESC_PROC aux = a_partir->prox_desc;
@@ -142,7 +140,7 @@ static PTR_DESC_PROC proximo_ativo_depois(PTR_DESC_PROC a_partir)
     return (a_partir->estado == ATIVO) ? a_partir : NULL;
 }
 
-// ====================== FUNÇÕES PRINCIPAIS DA BIBLIOTECA ======================
+// =========================== FUNÇÕES PRINCIPAIS DA BIBLIOTECA ===========================
 
 // TODO: cria_processo(...);        [x]
 // TODO: inicia_fila_prontos(...);  [x]
@@ -196,7 +194,6 @@ void encerra_fila_prontos(void)
         p = aux;
     }
 
-    processo_zumbi = NULL; // Reseta o ponteiro global por segurança
     printf("[DEBUG] Todas as Fibers e descritores foram libertos com sucesso pelo processo principal.\n");
 }
 
@@ -227,17 +224,8 @@ void yield(void)
         PTR_DESC_PROC antigo = atual;
         atual = prox;
 
-        // Troca de contexto realizada por Fibers
         transfer(antigo->contexto, atual->contexto);
 
-        // =========================================================================
-        // PONTO DE RETORNO: Qualquer Fiber que acordar aqui está em sua própria pilha.
-        // Agora é seguro eliminar o processo zumbi que pediu para ser liberado.
-        // =========================================================================
-        if (processo_zumbi != NULL) {
-            liberar_processo_na_fila(processo_zumbi);
-            processo_zumbi = NULL; // Zumbi coletado com sucesso
-        }
     }
     else {
         set_main_ready();  // Atribui a variável `main_ready` como 1 se não houver outros ATIVOS.
@@ -252,7 +240,7 @@ void termina_processo(void)
     }
 
     atual->estado = TERMINADO;
-    PTR_DESC_PROC antigo = atual;
 
+    // PTR_DESC_PROC antigo = atual;
     // liberar_processo_na_fila(antigo);
 }

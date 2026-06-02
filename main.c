@@ -5,10 +5,10 @@
 #include "semaforo.h"
 #include "pausa.h"
 
-#define TAM 9
-#define QTD_VALUES 125
+#define TAM 7
+#define QTD_VALUES 12
 
-int buffer[TAM];
+int buffer[TAM] = {0};
 int indiceEntrada = 0;
 int indiceSaida = 0;
 
@@ -24,6 +24,7 @@ void depositar(int mensagemArg) {
 
 int retirar(void) {
     int mensagemLida = buffer[indiceSaida];
+    buffer[indiceSaida] = 0;
     printf("[Consumidor] Retirou %d da posicao %d.\n", mensagemLida, indiceSaida);
     indiceSaida = (indiceSaida + 1) % TAM;
     return mensagemLida;
@@ -31,16 +32,15 @@ int retirar(void) {
 
 void rotinaProdutor(void) {
     int mensagemAtual = 1;
-    // while(1) {
+
     for (mensagemAtual = 1; mensagemAtual <= QTD_VALUES; mensagemAtual++){
 
-        // so_delay_ms(200);
+        so_delay_ms(200);
 
         P(&vazio);
         P(&exclusaoMutua);
 
         depositar(mensagemAtual);
-        // mensagemAtual++;
 
         V(&exclusaoMutua);
         V(&cheio);
@@ -61,8 +61,7 @@ void rotinaConsumidor(void) {
         V(&exclusaoMutua);
         V(&vazio);
 
-        // so_delay_ms(500);
-        // limite++;
+        so_delay_ms(500);
     }
 
     printf("[DEBUG] %s encerrado.\n", __FUNCTION__);
